@@ -37,11 +37,11 @@ def main():
         args = read_parameters()
         blast_filename = args.file  # data/hairpin_m8.cblast
         # Call bash commands (mcl)
-        # execute_bash(blast_filename)
-        # write_families()
+        execute_bash(blast_filename)
+        write_families()
         # Generates another file, sorted by cluster ID (better for comparison)
         produce_sorted_file("miFamMcl.dat")
-        produce_sorted_file("data/miFam.dat")
+        #produce_sorted_file("data/miFam.dat")
 
         print("----- Finished succesfully")
     except Exception as e:
