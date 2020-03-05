@@ -50,63 +50,70 @@ def main():
         print()
 
         args = read_parameters()
-
+        
         dataset_filename = args.file  # input/hairpin.fa
         db_filename = bash_format_db_for_blast(dataset_filename)
         blast_filename = bash_blastall_db(db_filename)
         mcl_filename = bash_run_mcl(blast_filename)
         # Another one with custom BLAST
-        '''
         word_size = "7"  # def 11
         reward = "5"  # def 1
         penalty = "-4"  # def -3
+        cost_gap_open = "10"  # def 5?
+        cost_gap_extend = "6"  # def 2?
         blast_filename_custom = bash_blastall_db_custom(
-            db_filename, word_size, reward, penalty)
+            db_filename, word_size, reward, penalty, cost_gap_open, cost_gap_extend)
         mcl_filename_custom = bash_run_mcl(blast_filename_custom)
         print()
-        '''
+        
 
-        '''
         mcl_filename = "output/m8.cblast.mcl"
         mcl_filename_custom = "output/m8.cblast.custom.mcl"
-        '''
 
         aliases = load_aliases("input/aliases.txt")
         # Gets mirnas with their clusters from mirbase and adds unclustered
         mirbase_families = get_families_with_unclustered_mirbase(
             "input/miFam.dat", "input/hairpin.fa")
+
         # Updates the list with the numeric mappings and returns a mapping dictionary
         mirbase_families, numeric_cluster_mappings = get_numeric_cluster_mappings(
             mirbase_families)
         mcl_families = get_families_from_mcl(
-            mcl_filename, aliases, numeric_cluster_mappings)
-        # mcl_families_custom = get_families_from_mcl(
-        #   mcl_filename_custom, aliases, numeric_cluster_mappings)
+            mcl_filename, aliases, numeric_cluster_mappings, mirbase_families)
+        mcl_families_custom = get_families_from_mcl(
+            mcl_filename_custom, aliases, numeric_cluster_mappings, mirbase_families)
 
         numeric_cluster_ids_mirbase = [
             mirna.cluster_nr for mirna in mirbase_families]
         numeric_cluster_ids_mcl = [
             mirna.cluster_nr for mirna in mcl_families]
+        numeric_cluster_ids_mcl_custom = [
+            mirna.cluster_nr for mirna in mcl_families_custom]
 
         print("--- MCL with default BLAST")
+        print("word_size = 11, reward = 1, penalty = -3, cost_gap_open = 5?, cost_gap_extend = 2?")
         run_metrics(numeric_cluster_ids_mirbase,
                     numeric_cluster_ids_mcl, mcl_families)
         print()
-        '''
-        print("--- MCL with custom BLAST")
+
+        print("--- MCL with custom BLAST:")
+        print("word_size = 7, reward = 5, penalty = -4, cost_gap_open = 10, cost_gap_extend = 6")
         run_metrics(numeric_cluster_ids_mirbase,
-                    numeric_cluster_ids_mcl, mcl_families_custom)
-        '''
+                    numeric_cluster_ids_mcl_custom, mcl_families_custom)
 
         '''
         write_families(mirbase_families, "output/miFam.dat.sorted")
         write_families(mcl_families, "output/miFamMcl.dat.sorted")
+        write_families(mcl_families_custom, "output/miFamMclCustom.dat.sorted")
         write_families_labels_only(
             mirbase_families, "output/miFam.dat.sorted.labels")
         write_families_labels_only(
             mcl_families, "output/miFamMcl.dat.sorted.labels")
+        write_families_labels_only(
+            mcl_families_custom, "output/miFamMclCustom.dat.sorted.labels")
         '''
 
+        print()
         print("------ Finished succesfully (", datetime.now()-start, ")")
     except Exception as e:
         print("An error occurred during execution:")
@@ -146,12 +153,16 @@ def bash_blastall_db(db_filename):
     return blast_filename
 
 
-def bash_blastall_db_custom(db_filename, word_size, reward, penalty):
+def bash_blastall_db_custom(db_filename, word_size, reward, penalty, cost_gap_open, cost_gap_extend):
     blast_filename = "output/m8.cblast.custom"
-    template = "blastall -i #db_filename# -d #db_filename# -p blastn -X #word_size# -r #reward# -q #penalty# -m 8 > #blast_filename#"
-    command = template.replace("#db_filename#", db_filename).replace(
-        "#blast_filename#", blast_filename).replace("#word_size#", word_size).replace(
-            "reward", reward).replace("#penalty#", penalty)
+    template = "blastall -i #db_filename# -d #db_filename# -p blastn -X #word_size# -r #reward# -q #penalty# -G #cost_gap_open# -E #cost_gap_extend# -m 8 > #blast_filename#"
+    command = template.replace("#db_filename#", db_filename)
+    command = command.replace("#blast_filename#", blast_filename)
+    command = command.replace("#word_size#", word_size)
+    command = command.replace("#reward#", reward)
+    command = command.replace("#penalty#", penalty)
+    command = command.replace("#cost_gap_open#", cost_gap_open)
+    command = command.replace("#cost_gap_extend#", cost_gap_extend)
     print()
     print("--- Running blastall")
     print(subprocess.getoutput(command))
@@ -179,7 +190,7 @@ def load_aliases(aliases_filename):
     return aliases
 
 
-def get_families_from_mcl(mcl_filename, aliases, numeric_cluster_mappings):
+def get_families_from_mcl(mcl_filename, aliases, numeric_cluster_mappings, mirbase_families):
     mcl_families = []
     cluster_ids = {}
     with open(mcl_filename) as inputfile:
@@ -223,6 +234,20 @@ def get_families_from_mcl(mcl_filename, aliases, numeric_cluster_mappings):
                 mirna.cluster = cluster_id
                 mirna.cluster_nr = cluster_nr
                 mcl_families.append(mirna)
+
+    # Added for the cases where the BLASTing leaves out some miRNAs
+    mirna_ids_mcl = [mirna.id for mirna in mcl_families]
+    for mirna_mirbase in mirbase_families:
+        if mirna_mirbase.id not in mirna_ids_mcl:
+            mirna = Mirna()
+            mirna.id = mirna_mirbase.id
+            mirna.ac = mirna_mirbase.ac
+            cluster_id = "uc_" + mirna_mirbase.id
+            mirna.cluster = cluster_id
+            cluster_nr = max(numeric_cluster_mappings.values()) + 1
+            numeric_cluster_mappings[cluster_id] = cluster_nr
+            mirna.cluster_nr = cluster_nr
+            mcl_families.append(mirna)
 
     return mcl_families
 
@@ -313,14 +338,14 @@ def get_numeric_cluster_ids_mcl(cluster_ids_mcl_dict_sorted, cluster_ids_mirbase
 
 
 def run_metrics(numeric_cluster_ids_mirbase, numeric_cluster_ids_mcl, mcl_families):
-
+    '''
     print("--- Scores WITHOUT proper predicted-to-real cluster mapping")
     print_metrics(numeric_cluster_ids_mirbase, numeric_cluster_ids_mcl)
+    '''
 
     cluster_names_mcl = [mirna.cluster for mirna in mcl_families]
 
-    print()
-    print("--- Scores WITH proper predicted-to-real cluster mapping")
+    print("--- Scores with proper predicted-to-real cluster mapping")
 
     print("--- Normalization = ALL")
     equivalences_dict = get_cluster_equivalences(
@@ -329,6 +354,7 @@ def run_metrics(numeric_cluster_ids_mirbase, numeric_cluster_ids_mcl, mcl_famili
         equivalences_dict[mirna.cluster] for mirna in mcl_families]
     print_metrics(numeric_cluster_ids_mirbase, numeric_cluster_ids_mcl)
 
+    '''
     print("--- Normalization = ROW")
     equivalences_dict = get_cluster_equivalences(
         numeric_cluster_ids_mirbase, cluster_names_mcl, "index")
@@ -342,6 +368,7 @@ def run_metrics(numeric_cluster_ids_mirbase, numeric_cluster_ids_mcl, mcl_famili
     numeric_cluster_ids_mcl = [
         equivalences_dict[mirna.cluster] for mirna in mcl_families]
     print_metrics(numeric_cluster_ids_mirbase, numeric_cluster_ids_mcl)
+    '''
 
 
 def get_cluster_equivalences(numeric_cluster_ids_mirbase, cluster_names_mcl, normalization_mode):
@@ -351,7 +378,7 @@ def get_cluster_equivalences(numeric_cluster_ids_mirbase, cluster_names_mcl, nor
     ct = pandas.crosstab(df['Real'], df['Pred'], normalize=normalization_mode)
     ct_sorted = ct.unstack().sort_values(ascending=False)
     ct_sorted = ct_sorted[ct_sorted > 0]
-    print(ct_sorted.size)
+    # print(ct_sorted.size)
     for indexes, count in ct_sorted.items():
         if indexes[0] not in cluster_equivalences:
             cluster_equivalences[indexes[0]] = indexes[1]
