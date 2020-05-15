@@ -1,6 +1,6 @@
-# miRBase-tests
+# miRNACluster
 
-miRBase tests and utilities
+Unsupervised microRNA clustering comparison tool.
 
 ## Notes
 
