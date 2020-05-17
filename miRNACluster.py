@@ -89,6 +89,9 @@ def main():
         print("\n----------------------")
         print("--- miRBase families")
         print_stats(mirbase_families)
+        mirbase_raw_file = mirna_clustered_filename.replace(
+            "input", "output").replace(".dat", "")
+        file_outputs_mirbase_families(mirbase_families, mirbase_raw_file)
         print()
 
         # blast_filename = "output/m8.cblast.custom.test"
@@ -143,8 +146,9 @@ def main():
 
         if "density" in algorithms:
             print("--- Running density algorithm")
+            eps = 0.000071
             dbscan = sklearn.cluster.DBSCAN(
-                metric="precomputed", min_samples=2).fit(distance_matrix)
+                eps=eps, metric="precomputed", min_samples=2).fit(distance_matrix)
             print()
 
             dbscan_families = get_families_from_dbscan(
@@ -862,6 +866,8 @@ def get_clustal_families(fasta_filename, clustal_filename, cached):
 
 
 def file_outputs(algorithm_families, cluster_equivalences, mirbase_families, raw_files, families_filename):
+    print("--- Generating output files.")
+    print()
     families_by_size = get_clusters_by_size(algorithm_families)
     if raw_files:
         equivalences_file = families_filename + "_equivalences.tsv"
@@ -876,6 +882,19 @@ def file_outputs(algorithm_families, cluster_equivalences, mirbase_families, raw
             algorithm_families, by_cluster_size_file, families_by_size)
     write_families_mirbase_format(
         algorithm_families, families_filename + ".dat", families_by_size)
+
+
+def file_outputs_mirbase_families(mirbase_families, families_filename):
+    print("--- Generating raw miRBase output files.")
+    print()
+    families_by_size = get_clusters_by_size(mirbase_families)
+    by_cluster_name_file = families_filename + "_byname.txt"
+    by_cluster_size_file = families_filename + "_bysize.txt"
+    clusters_only_file = families_filename + "_labelsonly.txt"
+    write_families(mirbase_families, by_cluster_name_file)
+    write_families_labels_only(mirbase_families, clusters_only_file)
+    write_families_sort_by_size(
+        mirbase_families, by_cluster_size_file, families_by_size)
 
 
 # Entry
