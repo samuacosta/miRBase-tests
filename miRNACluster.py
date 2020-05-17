@@ -11,7 +11,6 @@ import operator
 import shutil
 import subprocess
 
-import numpy
 import pandas
 import sklearn
 import sklearn.cluster
