@@ -190,7 +190,7 @@ def read_parameters():
                         "--cached",
                         nargs='*',
                         help="List of steps where a cached file is assumed (formatdb/blast/clustal/mcl). [Default=none]",
-                        default=["formatdb", "blast", "clustal", "mcl"]
+                        #default=["formatdb", "blast", "clustal", "mcl"]
                         )
     parser.add_argument("-r",
                         "--raw",
